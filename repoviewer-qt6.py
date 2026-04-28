@@ -423,7 +423,7 @@ class FetchWorker(QThread):
             primary_url = f"{baseurl}/{primary_href}"
             gz_data = self._get(primary_url)
             xml_data = gzip.decompress(gz_data)
-            return self._parse_primary(xml_data)
+            return self._parse_primary(baseurl, xml_data)
         except urllib.error.HTTPError as e:
             return f"HTTP {e.code}: {e.reason} — {repomd_url if 'repomd_url' in dir() else baseurl}"
         except urllib.error.URLError as e:
@@ -451,7 +451,7 @@ class FetchWorker(QThread):
         return None
 
     @staticmethod
-    def _parse_primary(data: bytes) -> list[dict]:
+    def _parse_primary(baseurl: str, data: bytes) -> list[dict]:
         NS = {
             "r": "http://linux.duke.edu/metadata/common",
             "rpm": "http://linux.duke.edu/metadata/rpm",
@@ -468,10 +468,13 @@ class FetchWorker(QThread):
             rel     = ver_el.get("rel", "")    if ver_el is not None else ""
             size_el = pkg.find("r:size", NS)
             size    = size_el.get("package", "0") if size_el is not None else "0"
+            loc_el  = pkg.find("r:location", NS)
+            href    = loc_el.get("href", "") if loc_el is not None else ""
+            download_url = f"{baseurl}/{href}" if href else ""
             packages.append({
                 "name": name, "arch": arch,
                 "epoch": epoch, "version": ver, "release": rel,
-                "summary": summary, "size": size,
+                "summary": summary, "size": size, "download_url": download_url,
             })
         return packages
 
@@ -979,6 +982,7 @@ class MainWindow(QMainWindow):
         <tr><td class='key'>Epoch</td><td></td><td class='val'>{pkg.get('epoch','0')}</td></tr>
         <tr><td class='key'>Package Size</td><td></td><td class='val'>{size_kb:,} KB</td></tr>
         <tr><td class='key'>Summary</td><td></td><td class='val'>{pkg.get('summary','')}</td></tr>
+        <tr><td class='key'>Download</td><td></td><td class='val'>{pkg.get('download_url','')}</td></tr>
         </table>"""
         self._pkg_detail.setHtml(html)
 
